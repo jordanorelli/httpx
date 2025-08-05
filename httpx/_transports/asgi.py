@@ -141,7 +141,6 @@ class ASGITransport(AsyncBaseTransport):
         request_complete = False
 
         # Response.
-        task = None
         status_code = None
         response_headers = None
         body_parts = []
