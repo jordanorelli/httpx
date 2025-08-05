@@ -63,6 +63,7 @@ class PostResponseHandler:
         self.finished = 0
 
     def complete(self) -> None:
+        self.finished += 1
         self.done.set()
 
     async def __call__(self, scope, receive, send):
@@ -83,7 +84,6 @@ class PostResponseHandler:
         )
         await send({"type": "http.response.body", "body": output})
         await self.done.wait()
-        self.finished += 1
 
 
 async def raise_exc(scope, receive, send):

@@ -52,6 +52,15 @@ def create_event() -> Event:
     return asyncio.Event()
 
 
+def run_app(app, scope, send, receive) -> None:
+    if is_running_trio():
+        raise RuntimeError("trio implementation not done yet")
+    else:
+        import asyncio
+
+        asyncio.create_task(app(scope, send, receive))
+
+
 class ASGIResponseStream(AsyncByteStream):
     def __init__(self, body: list[bytes]) -> None:
         self._body = body
@@ -123,6 +132,7 @@ class ASGITransport(AsyncBaseTransport):
         request_complete = False
 
         # Response.
+        task = None
         status_code = None
         response_headers = None
         body_parts = []
@@ -167,7 +177,7 @@ class ASGITransport(AsyncBaseTransport):
                     response_complete.set()
 
         try:
-            await self.app(scope, receive, send)
+            run_app(self.app, scope, receive, send)
         except Exception:  # noqa: PIE-786
             if self.raise_app_exceptions:
                 raise
@@ -178,7 +188,7 @@ class ASGITransport(AsyncBaseTransport):
             if response_headers is None:
                 response_headers = {}
 
-        assert response_complete.is_set()
+        await response_complete.wait()
         assert status_code is not None
         assert response_headers is not None
 
