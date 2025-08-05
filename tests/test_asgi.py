@@ -56,6 +56,36 @@ async def echo_headers(scope, receive, send):
     await send({"type": "http.response.body", "body": output})
 
 
+class PostResponseHandler:
+    def __init__(self) -> None:
+        self.done = httpx._transports.asgi.create_event()
+        self.started = 0
+        self.finished = 0
+
+    def complete(self) -> None:
+        self.done.set()
+
+    async def __call__(self, scope, receive, send):
+        self.started += 1
+        status = 200
+        output = b"Hello, World!"
+        headers = [
+            (b"content-type", "text/plain"),
+            (b"content-length", str(len(output))),
+        ]
+
+        await send(
+            {
+                "type": "http.response.start",
+                "status": status,
+                "headers": headers,
+            }
+        )
+        await send({"type": "http.response.body", "body": output})
+        await self.done.wait()
+        self.finished += 1
+
+
 async def raise_exc(scope, receive, send):
     raise RuntimeError()
 
@@ -191,7 +221,11 @@ async def test_asgi_disconnect_after_response_complete():
         headers = [(b"content-type", "text/plain")]
 
         await send(
-            {"type": "http.response.start", "status": status, "headers": headers}
+            {
+                "type": "http.response.start",
+                "status": status,
+                "headers": headers,
+            }
         )
         more_body = True
         while more_body:
@@ -222,3 +256,17 @@ async def test_asgi_exc_no_raise():
         response = await client.get("http://www.example.org/")
 
         assert response.status_code == 500
+
+
+@pytest.mark.anyio
+async def test_asgi_post_response():
+    app = PostResponseHandler()
+    assert app.finished == 0
+    async with httpx.ASGITransport(app=app) as transport:
+        request = httpx.Request("GET", "http://www.example.com/")
+        response = await transport.handle_async_request(request)
+        await response.aread()
+        assert response.status_code == 200
+        assert response.content == b"Hello, World!"
+        app.complete()
+    assert app.finished == 1
