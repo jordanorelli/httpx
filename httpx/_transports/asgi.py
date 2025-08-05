@@ -52,13 +52,17 @@ def create_event() -> Event:
     return asyncio.Event()
 
 
+_tasks = set()
+
+
 def run_app(app, scope, send, receive) -> None:
     if is_running_trio():
         raise RuntimeError("trio implementation not done yet")
     else:
         import asyncio
 
-        asyncio.create_task(app(scope, send, receive))
+        task = asyncio.create_task(app(scope, send, receive))
+        _tasks.add(task)
 
 
 class ASGIResponseStream(AsyncByteStream):
