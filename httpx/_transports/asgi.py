@@ -55,6 +55,10 @@ def create_event() -> Event:
 _tasks = set()
 
 
+def drop_asyncio_task(task) -> None:
+    _tasks.remove(task)
+
+
 def run_app(app, scope, send, receive) -> None:
     if is_running_trio():
         raise RuntimeError("trio implementation not done yet")
@@ -62,6 +66,7 @@ def run_app(app, scope, send, receive) -> None:
         import asyncio
 
         task = asyncio.create_task(app(scope, send, receive))
+        task.add_done_callback(drop_asyncio_task)
         _tasks.add(task)
 
 
